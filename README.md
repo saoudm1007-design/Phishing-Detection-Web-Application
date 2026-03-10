@@ -2,10 +2,6 @@
 
 An advanced phishing detection web application combining heuristic analysis, Google Safe Browsing API, and VirusTotal API to detect malicious URLs, IP addresses, domains, and file hashes. Supports Arabic/English with full RTL layout.
 
-## Live Demo
-
-🌐 [phishing.saoud.site](https://phishing.saoud.site)
-
 ## Features
 
 - **URL Scanner** — 3-layer detection with live progress indicator
