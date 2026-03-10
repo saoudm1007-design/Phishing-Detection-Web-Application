@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishRadar - Phishing URL Detector</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0a0e1a;
+            --surface: rgba(30,41,59,0.8);
+            --surface-solid: #1e293b;
+            --border: rgba(99,102,241,0.2);
+            --border-soft: rgba(255,255,255,0.06);
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --muted2: #64748b;
+            --input-bg: rgba(15,23,42,0.8);
+            --ctrl-bg: #1e293b;
+            --ctrl-border: #2d3a4e;
+        }
+        [data-theme="light"] {
+            --bg: #f1f5f9;
+            --surface: rgba(255,255,255,0.9);
+            --surface-solid: #ffffff;
+            --border: rgba(99,102,241,0.3);
+            --border-soft: rgba(0,0,0,0.07);
+            --text: #1e293b;
+            --muted: #475569;
+            --muted2: #64748b;
+            --input-bg: rgba(255,255,255,0.9);
+            --ctrl-bg: #ffffff;
+            --ctrl-border: #cbd5e1;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.07) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(16,185,129,0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        [data-theme="light"] body::before { opacity: 0.4; }
+
+        .ctrl-btn {
+            background: var(--ctrl-bg);
+            border: 1px solid var(--ctrl-border);
+            color: var(--muted);
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 100;
+            transition: all 0.2s;
+        }
+        .ctrl-btn:hover { border-color: #6366f1; color: #6366f1; }
+
+        .container { max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; position: relative; z-index: 1; }
+
+        .header { text-align: center; margin-bottom: 48px; }
+        .logo { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .logo-icon { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+        .logo-text { font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg, #6366f1, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .header p { color: var(--muted); font-size: 1.05rem; margin-top: 8px; }
+
+        .stats-bar { display: flex; justify-content: center; gap: 32px; margin-top: 24px; flex-wrap: wrap; }
+        .stat { text-align: center; }
+        .stat-num { font-size: 1.5rem; font-weight: 700; color: #6366f1; }
+        .stat-label { font-size: 0.75rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .input-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 36px;
+            margin-bottom: 28px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+        }
+        .input-label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+        .input-group { display: flex; gap: 12px; }
+        .url-input {
+            flex: 1;
+            background: var(--input-bg);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            color: var(--text);
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .url-input::placeholder { color: var(--muted2); }
+        .url-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+        .scan-btn {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white; border: none; border-radius: 12px;
+            padding: 14px 28px; font-size: 1rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; white-space: nowrap;
+            box-shadow: 0 4px 15px rgba(99,102,241,0.35);
+        }
+        .scan-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.5); }
+        .scan-btn:active { transform: translateY(0); }
+        .scan-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .examples { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .examples span { font-size: 0.8rem; color: var(--muted2); }
+        .example-btn {
+            background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2);
+            border-radius: 6px; padding: 4px 10px; color: #818cf8;
+            font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
+        }
+        .example-btn:hover { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+
+        .error-msg {
+            background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 10px; padding: 14px 18px; color: #f87171;
+            font-size: 0.9rem; display: none; margin-top: 12px;
+        }
+
+        /* Progress steps */
+        .progress-card {
+            display: none;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px 36px;
+            margin-bottom: 28px;
+            backdrop-filter: blur(10px);
+        }
+        .progress-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted2); margin-bottom: 20px; }
+        .steps { display: flex; align-items: center; gap: 0; flex-wrap: wrap; gap: 8px; }
+        .step {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-soft);
+            background: var(--input-bg);
+            flex: 1; min-width: 160px;
+            transition: all 0.3s;
+        }
+        .step.running { border-color: rgba(99,102,241,0.5); background: rgba(99,102,241,0.08); }
+        .step.done    { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); }
+        .step.failed  { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.06); }
+        .step-icon { font-size: 1.3rem; flex-shrink: 0; }
+        .step-info { flex: 1; }
+        .step-name { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+        .step-status { font-size: 0.72rem; color: var(--muted2); margin-top: 2px; }
+        .step.running .step-status { color: #818cf8; }
+        .step.done    .step-status { color: #34d399; }
+        .step.failed  .step-status { color: #f87171; }
+        .step-check { font-size: 1rem; }
+
+        .spinner-sm {
+            width: 14px; height: 14px;
+            border: 2px solid rgba(99,102,241,0.2);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Result Card */
+        .result-card {
+            display: none;
+            background: var(--surface);
+            border-radius: 20px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+            animation: slideUp 0.4s ease;
+        }
+        @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+        .result-header { padding: 28px 36px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+        .result-header.danger  { background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.06)); border-bottom: 1px solid rgba(239,68,68,0.25); }
+        .result-header.warning { background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(217,119,6,0.06)); border-bottom: 1px solid rgba(245,158,11,0.25); }
+        .result-header.success { background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06)); border-bottom: 1px solid rgba(16,185,129,0.25); }
+
+        .verdict-badge { display: flex; align-items: center; gap: 12px; }
+        .verdict-icon { font-size: 2.2rem; }
+        .verdict-text h2 { font-size: 1.5rem; font-weight: 800; }
+        .verdict-text.danger  h2 { color: #f87171; }
+        .verdict-text.warning h2 { color: #fbbf24; }
+        .verdict-text.success h2 { color: #34d399; }
+        .verdict-text p { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+
+        .score-ring { position: relative; width: 90px; height: 90px; }
+        .score-ring svg { transform: rotate(-90deg); }
+        .score-ring .track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 7; }
+        [data-theme="light"] .score-ring .track { stroke: rgba(0,0,0,0.08); }
+        .score-ring .fill { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+        .score-ring.danger  .fill { stroke: #ef4444; }
+        .score-ring.warning .fill { stroke: #f59e0b; }
+        .score-ring.success .fill { stroke: #10b981; }
+        .score-number { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1.4rem; font-weight: 800; text-align: center; color: var(--text); }
+        .score-number small { display: block; font-size: 0.55rem; font-weight: 500; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .result-body { padding: 28px 36px; }
+        .url-display { background: var(--input-bg); border-radius: 10px; padding: 12px 16px; font-family: monospace; font-size: 0.85rem; color: var(--muted); word-break: break-all; margin-bottom: 24px; border: 1px solid var(--border-soft); }
+        .section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted2); margin-bottom: 12px; }
+
+        .flags-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+        .flag-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; }
+        .flag-item.danger  { background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.15);  color: #fca5a5; }
+        .flag-item.warning { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.15); color: #fcd34d; }
+        .flag-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .flag-item.danger  .flag-dot { background: #ef4444; }
+        .flag-item.warning .flag-dot { background: #f59e0b; }
+        .no-flags { padding: 16px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.15); border-radius: 8px; color: #6ee7b7; font-size: 0.88rem; margin-bottom: 24px; }
+
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+        .feature-item { background: var(--input-bg); border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px 14px; }
+        .feature-name { font-size: 0.72rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .feature-value { font-size: 1rem; font-weight: 600; color: var(--text); }
+        .feature-value.yes { color: #f87171; }
+        .feature-value.no  { color: #34d399; }
+
+        /* Threat Intelligence */
+        .threat-intel { margin-top: 24px; }
+        .gsb-box { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 10px; margin-bottom: 12px; }
+        .gsb-box.safe    { background: rgba(16,185,129,0.08);  border: 1px solid rgba(16,185,129,0.2); }
+        .gsb-box.unsafe  { background: rgba(239,68,68,0.08);   border: 1px solid rgba(239,68,68,0.2); }
+        .gsb-box.unknown { background: var(--input-bg); border: 1px solid var(--border-soft); }
+        .gsb-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; flex-shrink: 0; font-size: 0.9rem; }
+        .gsb-box.safe    .gsb-circle { background: #10b981; }
+        .gsb-box.unsafe  .gsb-circle { background: #ef4444; }
+        .gsb-box.unknown .gsb-circle { background: #64748b; }
+        .gsb-label-top { font-size: 0.72rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+        .gsb-label-main { font-size: 0.9rem; font-weight: 600; }
+        .gsb-box.safe    .gsb-label-main { color: #34d399; }
+        .gsb-box.unsafe  .gsb-label-main { color: #f87171; }
+        .gsb-box.unknown .gsb-label-main { color: var(--muted); }
+
+        .vt-box { background: var(--input-bg); border: 1px solid var(--border-soft); border-radius: 12px; padding: 18px 20px; }
+        .vt-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .vt-label-top { font-size: 0.72rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+        .vt-label-main { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+        .vt-total { font-size: 0.8rem; color: var(--muted2); }
+        .vt-bar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: rgba(255,255,255,0.06); margin-bottom: 12px; }
+        [data-theme="light"] .vt-bar { background: rgba(0,0,0,0.06); }
+        .vt-bar-mal { background: #ef4444; transition: width 1s ease; }
+        .vt-bar-sus { background: #f59e0b; transition: width 1s ease; }
+        .vt-bar-ok  { background: #10b981; transition: width 1s ease; }
+        .vt-stats { display: flex; gap: 20px; flex-wrap: wrap; }
+        .vt-stats span { font-size: 0.8rem; }
+        .vt-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.88rem; padding: 8px 0; }
+
+        /* Share */
+        .share-row { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-soft); flex-wrap: wrap; }
+        .share-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25);
+            color: #818cf8; border-radius: 8px; padding: 8px 16px;
+            font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+        }
+        .share-btn:hover { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+        .share-link { flex: 1; background: var(--input-bg); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 12px; font-family: monospace; font-size: 0.8rem; color: var(--muted); display: none; word-break: break-all; }
+        .copy-btn { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.2); color: #34d399; border-radius: 8px; padding: 8px 12px; font-size: 0.82rem; font-weight: 600; cursor: pointer; display: none; white-space: nowrap; transition: all 0.15s; }
+        .copy-btn:hover { background: rgba(16,185,129,0.2); }
+
+
+
+        /* RTL Support */
+        [dir="rtl"] body { font-family: 'Segoe UI', 'Arial', system-ui, sans-serif; }
+        [dir="rtl"] .top-nav { direction: ltr; }
+        [dir="rtl"] .tabs { direction: rtl; }
+        [dir="rtl"] .input-group { direction: rtl; }
+        [dir="rtl"] .examples { direction: rtl; }
+        [dir="rtl"] .steps { direction: rtl; }
+        [dir="rtl"] .verdict-badge { direction: rtl; }
+        [dir="rtl"] .features-grid { direction: rtl; }
+        [dir="rtl"] .lookup-grid { direction: rtl; }
+        [dir="rtl"] .share-row { direction: rtl; }
+        [dir="rtl"] .history-item { direction: rtl; }
+        [dir="rtl"] .stat { direction: rtl; }
+        [dir="rtl"] .signal-grid { direction: rtl; }
+        [dir="rtl"] .guide-card-header { direction: rtl; }
+        [dir="rtl"] .score-row { direction: rtl; }
+        [dir="rtl"] .vt-stats { direction: rtl; }
+
+        /* Top Nav */
+        .top-nav {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 32px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 6px;
+            width: 100%;
+        }
+        .nav-btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .nav-btn:hover { color: var(--text); }
+        .nav-btn.active { background: #6366f1; color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,0.4); }
+
+        /* Guide page */
+        #page-guide { display: none; animation: slideUp 0.3s ease; }
+        .guide-section { margin-bottom: 28px; }
+        .guide-section-title { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 12px; display:flex; align-items:center; gap:8px; }
+        .guide-card { padding: 20px; background: var(--input-bg); border: 1px solid var(--border-soft); border-radius: 14px; margin-bottom: 10px; }
+        .guide-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+        .guide-card-title { font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+        .speed-badge { font-size: 0.72rem; padding: 2px 10px; border-radius: 20px; font-weight: 600; }
+        .speed-instant { background: rgba(99,102,241,0.15); color: #818cf8; }
+        .speed-fast    { background: rgba(16,185,129,0.15);  color: #34d399; }
+        .speed-slow    { background: rgba(245,158,11,0.15);  color: #fbbf24; }
+        .guide-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.7; margin-bottom: 10px; }
+        .signal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; margin-top: 10px; }
+        .signal-item { font-size: 0.8rem; color: var(--muted2); }
+        .score-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 10px; margin-bottom: 8px; }
+        .score-range { font-size: 1.2rem; font-weight: 800; min-width: 60px; }
+        .score-label { font-weight: 700; margin-bottom: 2px; }
+        .score-desc { font-size: 0.82rem; color: var(--muted); }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 0; background: var(--input-bg); border: 1px solid var(--border); border-radius: 14px 14px 0 0; padding: 6px; }
+        .tab-btn {
+            flex: 1; padding: 10px 8px; border: none; border-radius: 10px;
+            background: transparent; color: var(--muted); font-size: 0.85rem;
+            font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap;
+        }
+        .tab-btn:hover { color: var(--text); }
+        .tab-btn.active { background: #6366f1; color: #fff; box-shadow: 0 2px 8px rgba(99,102,241,0.4); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .input-card { border-radius: 0 0 20px 20px; border-top: none; }
+
+        /* Lookup result */
+        .lookup-card {
+            display: none; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 20px; padding: 28px 36px; margin-bottom: 28px;
+            backdrop-filter: blur(10px); animation: slideUp 0.3s ease;
+        }
+        .lookup-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .lookup-verdict { display: flex; align-items: center; gap: 10px; }
+        .lookup-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; }
+        .lookup-badge.danger  { background: rgba(239,68,68,0.15);  color: #f87171; }
+        .lookup-badge.warning { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .lookup-badge.success { background: rgba(16,185,129,0.15); color: #34d399; }
+        .lookup-title { font-size: 1.1rem; font-weight: 700; color: var(--text); font-family: monospace; }
+        .lookup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .lookup-item { background: var(--input-bg); border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px 14px; }
+        .lookup-item-label { font-size: 0.72rem; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .lookup-item-value { font-size: 0.92rem; font-weight: 600; color: var(--text); word-break: break-all; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; background: rgba(99,102,241,0.12); color: #818cf8; margin: 2px; }
+        .threat-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; background: rgba(239,68,68,0.1); color: #f87171; margin: 2px; }
+
+        /* History */
+        .history-section { margin-top: 32px; }
+        .history-section h3 { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted2); margin-bottom: 14px; }
+        .history-list { display: flex; flex-direction: column; gap: 8px; }
+        .history-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 10px; cursor: pointer; transition: all 0.15s; }
+        .history-item:hover { border-color: var(--border); }
+        .history-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .history-dot.danger  { background: #ef4444; }
+        .history-dot.warning { background: #f59e0b; }
+        .history-dot.success { background: #10b981; }
+        .history-url { flex: 1; font-size: 0.83rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-score { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+        .history-score.danger  { background: rgba(239,68,68,0.15);  color: #f87171; }
+        .history-score.warning { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .history-score.success { background: rgba(16,185,129,0.15); color: #34d399; }
+
+        .footer { text-align: center; margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border-soft); color: var(--muted2); font-size: 0.8rem; }
+
+        @media (max-width: 600px) {
+            .input-group { flex-direction: column; }
+            .result-header { flex-direction: column; }
+            .stats-bar { gap: 20px; }
+            .steps { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<div style="position:fixed;top:20px;right:20px;display:flex;gap:8px;z-index:100;">
+<button class="ctrl-btn" id="themeBtn" onclick="toggleTheme()">☀️</button>
+<button class="ctrl-btn" id="langBtn" onclick="toggleLang()">ع</button>
+</div>
+
+<div class="container">
+
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <button class="nav-btn active" id="nav-home"  onclick="showPage('home')" data-en="🏠 Home" data-ar="🏠 الرئيسية">🏠 Home</button>
+        <div style="flex:1;"></div>
+        <button class="nav-btn"        id="nav-guide" onclick="showPage('guide')" data-en="📖 How It Works" data-ar="📖 كيف يعمل">📖 How It Works</button>
+    </nav>
+
+    <!-- HOME PAGE -->
+    <div id="page-home">
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">🎣</div>
+            <div class="logo-text">PhishRadar</div>
+        </div>
+        <p data-en="Advanced URL phishing detection — Heuristics + Google Safe Browsing + VirusTotal" data-ar="كشف متقدم للتصيد الاحتيالي — تحليل استدلالي + جوجل للتصفح الآمن + فايروس توتال">Advanced URL phishing detection — Heuristics + Google Safe Browsing + VirusTotal</p>
+        <div class="stats-bar">
+            <div class="stat"><div class="stat-num" id="scanCount">0</div><div class="stat-label" data-en="URLs Scanned" data-ar="روابط مفحوصة">URLs Scanned</div></div>
+            <div class="stat"><div class="stat-num" id="threatCount">0</div><div class="stat-label" data-en="Threats Found" data-ar="تهديدات مكتشفة">Threats Found</div></div>
+            <div class="stat"><div class="stat-num">15+</div><div class="stat-label" data-en="Detection Signals" data-ar="إشارات الكشف">Detection Signals</div></div>
+        </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('url')"   id="tab-url" data-en="🔗 URL Scanner" data-ar="🔗 فاحص الروابط">🔗 URL Scanner</button>
+        <button class="tab-btn"        onclick="switchTab('ip')"    id="tab-ip" data-en="🌐 IP Address" data-ar="🌐 عنوان IP">🌐 IP Address</button>
+        <button class="tab-btn"        onclick="switchTab('domain')" id="tab-domain" data-en="🏠 Domain" data-ar="🏠 النطاق">🏠 Domain</button>
+        <button class="tab-btn"        onclick="switchTab('hash')"  id="tab-hash" data-en="🔑 File Hash" data-ar="🔑 هاش الملف">🔑 File Hash</button>
+    </div>
+
+    <div class="input-card">
+
+        <!-- URL Panel -->
+        <div class="tab-panel active" id="panel-url">
+            <label class="input-label" data-en="Enter URL to Analyze" data-ar="أدخل الرابط للتحليل">Enter URL to Analyze</label>
+            <div class="input-group">
+                <input type="text" class="url-input" id="urlInput"
+                    placeholder="https://example.com or paste any suspicious URL..." data-ph-en="https://example.com or paste any suspicious URL..." data-ph-ar="https://example.com أو الصق أي رابط مشبوه..."
+                    autocomplete="off" spellcheck="false">
+                <button class="scan-btn" id="scanBtn" onclick="analyze()" data-en="Scan URL" data-ar="فحص الرابط">Scan URL</button>
+            </div>
+            <div class="examples">
+                <span data-en="Try:" data-ar="جرّب:">Try:</span>
+                <button class="example-btn" onclick="fillExample('http://paypal-secure-login.xyz/verify?account=12345')">Phishing example</button>
+                <button class="example-btn" onclick="fillExample('https://192.168.1.1/banking/login')">IP-based URL</button>
+                <button class="example-btn" onclick="fillExample('https://google.com')">Trusted URL</button>
+                <button class="example-btn" onclick="fillExample('http://amaz0n-accounts-update.tk/login/confirm')">Brand spoofing</button>
+            </div>
+        </div>
+
+        <!-- IP Panel -->
+        <div class="tab-panel" id="panel-ip">
+            <label class="input-label" data-en="Enter IP Address" data-ar="أدخل عنوان IP">Enter IP Address</label>
+            <div class="input-group">
+                <input type="text" class="url-input" id="ipInput"
+                    placeholder="e.g. 8.8.8.8 or 185.220.101.45" data-ph-en="e.g. 8.8.8.8 or 185.220.101.45" data-ph-ar="مثال: 8.8.8.8 أو 185.220.101.45"
+                    autocomplete="off" spellcheck="false">
+                <button class="scan-btn" onclick="lookupIP()" data-en="Check IP" data-ar="فحص IP">Check IP</button>
+            </div>
+            <div class="examples">
+                <span data-en="Try:" data-ar="جرّب:">Try:</span>
+                <button class="example-btn" onclick="document.getElementById('ipInput').value='8.8.8.8'">8.8.8.8 (Google)</button>
+                <button class="example-btn" onclick="document.getElementById('ipInput').value='1.1.1.1'">1.1.1.1 (Cloudflare)</button>
+            </div>
+        </div>
+
+        <!-- Domain Panel -->
+        <div class="tab-panel" id="panel-domain">
+            <label class="input-label" data-en="Enter Domain" data-ar="أدخل النطاق">Enter Domain</label>
+            <div class="input-group">
+                <input type="text" class="url-input" id="domainInput"
+                    placeholder="e.g. google.com or suspicious-site.xyz" data-ph-en="e.g. google.com or suspicious-site.xyz" data-ph-ar="مثال: google.com أو موقع-مشبوه.xyz"
+                    autocomplete="off" spellcheck="false">
+                <button class="scan-btn" onclick="lookupDomain()" data-en="Check Domain" data-ar="فحص النطاق">Check Domain</button>
+            </div>
+            <div class="examples">
+                <span>Try:</span>
+                <button class="example-btn" onclick="document.getElementById('domainInput').value='google.com'">google.com</button>
+                <button class="example-btn" onclick="document.getElementById('domainInput').value='paypal-secure-login.xyz'">paypal-secure-login.xyz</button>
+            </div>
+        </div>
+
+        <!-- Hash Panel -->
+        <div class="tab-panel" id="panel-hash">
+            <label class="input-label" data-en="Enter File Hash (MD5 / SHA1 / SHA256)" data-ar="أدخل هاش الملف (MD5 / SHA1 / SHA256)">Enter File Hash (MD5 / SHA1 / SHA256)</label>
+            <div class="input-group">
+                <input type="text" class="url-input" id="hashInput"
+                    placeholder="e.g. 44d88612fea8a8f36de82e1278abb02f" data-ph-en="e.g. 44d88612fea8a8f36de82e1278abb02f" data-ph-ar="مثال: 44d88612fea8a8f36de82e1278abb02f"
+                    autocomplete="off" spellcheck="false">
+                <button class="scan-btn" onclick="lookupHash()" data-en="Check Hash" data-ar="فحص الهاش">Check Hash</button>
+            </div>
+            <div class="examples">
+                <span data-en="Accepts:" data-ar="يقبل:">Accepts:</span>
+                <button class="example-btn">MD5 (32 chars)</button>
+                <button class="example-btn">SHA1 (40 chars)</button>
+                <button class="example-btn">SHA256 (64 chars)</button>
+            </div>
+        </div>
+
+
+
+        <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <!-- Lookup Result Card -->
+    <div class="lookup-card" id="lookupCard">
+        <div class="lookup-header">
+            <div class="lookup-verdict">
+                <span class="lookup-badge" id="lookupBadge">-</span>
+                <span class="lookup-title" id="lookupTitle">-</span>
+            </div>
+            <div class="vt-bar" style="width:200px;height:10px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,0.06)">
+                <div class="vt-bar-mal" id="lkBarMal" style="width:0%"></div>
+                <div class="vt-bar-sus" id="lkBarSus" style="width:0%"></div>
+                <div class="vt-bar-ok"  id="lkBarOk"  style="width:0%"></div>
+            </div>
+        </div>
+        <div class="lookup-grid" id="lookupGrid"></div>
+        <div id="lookupExtra"></div>
+    </div>
+
+    <!-- Progress Steps -->
+    <div class="progress-card" id="progressCard">
+        <div class="progress-title" data-en="Scanning in progress" data-ar="جارٍ الفحص">Scanning in progress</div>
+        <div class="steps">
+            <div class="step" id="step1">
+                <div class="step-icon">🔍</div>
+                <div class="step-info">
+                    <div class="step-name" data-en="Heuristics" data-ar="التحليل الاستدلالي">Heuristics</div>
+                    <div class="step-status" id="s1status">Waiting...</div>
+                </div>
+                <div id="s1ind"></div>
+            </div>
+            <div class="step" id="step2">
+                <div class="step-icon">🛡️</div>
+                <div class="step-info">
+                    <div class="step-name" data-en="Google Safe Browsing" data-ar="جوجل للتصفح الآمن">Google Safe Browsing</div>
+                    <div class="step-status" id="s2status">Waiting...</div>
+                </div>
+                <div id="s2ind"></div>
+            </div>
+            <div class="step" id="step3">
+                <div class="step-icon">🔬</div>
+                <div class="step-info">
+                    <div class="step-name" data-en="VirusTotal" data-ar="فايروس توتال">VirusTotal</div>
+                    <div class="step-status" id="s3status">Waiting...</div>
+                </div>
+                <div id="s3ind"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="resultCard">
+        <div class="result-header" id="resultHeader">
+            <div class="verdict-badge">
+                <div class="verdict-icon" id="verdictIcon"></div>
+                <div class="verdict-text" id="verdictText">
+                    <h2 id="verdictLabel"></h2>
+                    <p id="riskLevel"></p>
+                </div>
+            </div>
+            <div class="score-ring" id="scoreRing">
+                <svg width="90" height="90" viewBox="0 0 90 90">
+                    <circle class="track" cx="45" cy="45" r="38"/>
+                    <circle class="fill" id="scoreFill" cx="45" cy="45" r="38"
+                        stroke-dasharray="238.76" stroke-dashoffset="238.76"/>
+                </svg>
+                <div class="score-number"><span id="scoreNum">0</span><small>/ 100</small></div>
+            </div>
+        </div>
+
+        <div class="result-body">
+            <div class="url-display" id="urlDisplay"></div>
+
+            <div class="section-title" data-en="Risk Indicators" data-ar="مؤشرات المخاطر">Risk Indicators</div>
+            <div class="flags-list" id="flagsList"></div>
+
+            <div class="section-title" data-en="URL Features" data-ar="خصائص الرابط">URL Features</div>
+            <div class="features-grid" id="featuresGrid"></div>
+
+            <div class="threat-intel" id="threatIntel" style="display:none">
+                <div class="section-title" data-en="Threat Intelligence" data-ar="استخبارات التهديدات">Threat Intelligence</div>
+                <div id="gsbContent"></div>
+                <div id="vtContent">
+                    <div class="vt-box">
+                        <div class="vt-header">
+                            <div><div class="vt-label-top">VirusTotal</div><div class="vt-label-main">Scanning with 70+ engines...</div></div>
+                        </div>
+                        <div class="vt-loading"><div class="spinner-sm"></div> This may take up to 15 seconds</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="share-row" id="shareRow" style="display:none">
+                <button class="share-btn" onclick="shareResult()" data-en="🔗 Share Result" data-ar="🔗 مشاركة النتيجة">🔗 Share Result</button>
+                <div class="share-link" id="shareLink"></div>
+                <button class="copy-btn" id="copyBtn" onclick="copyLink()" data-en="Copy" data-ar="نسخ">Copy</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="history-section" id="historySection" style="display:none">
+        <h3 data-en="Recent Scans" data-ar="عمليات الفحص الأخيرة">Recent Scans</h3>
+        <div class="history-list" id="historyList"></div>
+    </div>
+
+    </div><!-- /page-home -->
+
+    <!-- HOW IT WORKS PAGE -->
+    <div id="page-guide">
+
+        <div class="header">
+            <div class="logo"><div class="logo-icon">🎣</div><div class="logo-text">PhishRadar</div></div>
+            <p style="color:var(--muted);font-size:1.05rem;margin-top:8px;" data-en="How phishing detection works" data-ar="كيف يعمل كشف التصيد الاحتيالي">How phishing detection works</p>
+        </div>
+
+        <div class="guide-section">
+            <div class="guide-section-title" data-en="🎯 What is PhishRadar?" data-ar="🎯 ما هو PhishRadar؟">🎯 What is PhishRadar?</div>
+            <div class="guide-card">
+                <p class="guide-desc"><span data-en="PhishRadar analyzes URLs, IP addresses, domains, and file hashes to detect phishing attempts and malicious content. It combines three independent detection layers — each with different strengths — for maximum accuracy and coverage." data-ar="يقوم PhishRadar بتحليل الروابط (URLs) وعناوين IP والنطاقات وهاشات الملفات للكشف عن محاولات التصيد الاحتيالي والمحتوى الخبيث. يجمع بين ثلاث طبقات كشف مستقلة — لكل منها نقاط قوة مختلفة — لتحقيق أقصى دقة وتغطية.">PhishRadar analyzes URLs, IP addresses, domains, and file hashes to detect phishing attempts and malicious content. It combines three independent detection layers — each with different strengths — for maximum accuracy and coverage.</span></p>
+            </div>
+        </div>
+
+        <div class="guide-section">
+            <div class="guide-section-title" data-en="🔍 Detection Layers" data-ar="🔍 طبقات الكشف">🔍 Detection Layers</div>
+
+            <div class="guide-card" style="border-color:rgba(99,102,241,0.25);">
+                <div class="guide-card-header">
+                    <div class="guide-card-title"><span>🔍</span> <span data-en="Layer 1 — Heuristic Analysis" data-ar="الطبقة الأولى — التحليل الاستدلالي">Layer 1 — Heuristic Analysis</span></div>
+                    <span class="speed-badge speed-instant" data-en="Instant" data-ar="فوري">Instant</span>
+                </div>
+                <p class="guide-desc"><span data-en="Analyzes 15+ structural signals in the URL itself — no external API needed. Works entirely offline and returns results immediately." data-ar="يحلل أكثر من 15 إشارة هيكلية في الـ URL نفسه — دون الحاجة إلى API خارجي. يعمل بالكامل دون إنترنت ويُعيد النتائج فوراً.">Analyzes 15+ structural signals in the URL itself — no external API needed. Works entirely offline and returns results immediately.</span></p>
+                <div class="signal-grid">
+                    <div class="signal-item" data-en="● IP address used as domain" data-ar="● استخدام عنوان IP كنطاق">● IP address used as domain</div>
+                    <div class="signal-item" data-en="● No HTTPS encryption" data-ar="● غياب تشفير HTTPS">● No HTTPS encryption</div>
+                    <div class="signal-item" data-en="● Suspicious TLD (.xyz, .tk, .ml...)" data-ar="● نطاق مشبوه TLD (.xyz, .tk, .ml...)">● Suspicious TLD (.xyz, .tk, .ml...)</div>
+                    <div class="signal-item" data-en="● Brand name impersonation" data-ar="● انتحال أسماء العلامات التجارية">● Brand name impersonation</div>
+                    <div class="signal-item" data-en="● Unusually long URL" data-ar="● URL طويل بشكل غير اعتيادي">● Unusually long URL</div>
+                    <div class="signal-item" data-en="● High URL entropy (random-looking)" data-ar="● عشوائية عالية في الـ URL (يبدو عشوائياً)">● High URL entropy (random-looking)</div>
+                    <div class="signal-item" data-en="● Multiple hyphens in domain" data-ar="● شرطات متعددة في النطاق">● Multiple hyphens in domain</div>
+                    <div class="signal-item" data-en="● Suspicious keywords (login, verify...)" data-ar="● كلمات مفتاحية مشبوهة (login, verify...)">● Suspicious keywords (login, verify...)</div>
+                    <div class="signal-item" data-en="● Encoded characters (%20, %2F...)" data-ar="● أحرف مشفرة (%20, %2F...)">● Encoded characters (%20, %2F...)</div>
+                    <div class="signal-item" data-en="● Excessive subdomains" data-ar="● نطاقات فرعية مفرطة">● Excessive subdomains</div>
+                    <div class="signal-item" data-en="● Many digits in domain" data-ar="● أرقام كثيرة في النطاق">● Many digits in domain</div>
+                    <div class="signal-item" data-en="● Newly registered domain (WHOIS)" data-ar="● نطاق مسجل حديثاً (WHOIS)">● Newly registered domain (WHOIS)</div>
+                </div>
+            </div>
+
+            <div class="guide-card" style="border-color:rgba(16,185,129,0.25);">
+                <div class="guide-card-header">
+                    <div class="guide-card-title"><span>🛡️</span> <span data-en="Layer 2 — Google Safe Browsing API" data-ar="الطبقة الثانية — Google Safe Browsing API">Layer 2 — Google Safe Browsing API</span></div>
+                    <span class="speed-badge speed-fast" data-en="~1 second" data-ar="~ثانية واحدة">~1 second</span>
+                </div>
+                <p class="guide-desc"><span data-en="Checks the URL against Google's constantly updated threat lists — the same database Chrome uses to show &quot;This site may be harmful&quot; warnings. 10,000 free requests/day." data-ar="يفحص الـ URL مقابل قوائم التهديدات المحدّثة باستمرار من Google — نفس قاعدة البيانات التي يستخدمها Chrome لعرض تحذير &quot;قد يكون هذا الموقع ضاراً&quot;. 10,000 طلب مجاني يومياً.">Checks the URL against Google's constantly updated threat lists — the same database Chrome uses to show "This site may be harmful" warnings. 10,000 free requests/day.</span></p>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+                    <span style="font-size:0.78rem;background:rgba(239,68,68,0.1);color:#f87171;padding:3px 10px;border-radius:6px;" data-en="Malware" data-ar="برمجيات خبيثة">Malware</span>
+                    <span style="font-size:0.78rem;background:rgba(245,158,11,0.1);color:#fbbf24;padding:3px 10px;border-radius:6px;" data-en="Phishing / Social Engineering" data-ar="تصيد احتيالي / هندسة اجتماعية">Phishing / Social Engineering</span>
+                    <span style="font-size:0.78rem;background:rgba(99,102,241,0.1);color:#818cf8;padding:3px 10px;border-radius:6px;" data-en="Unwanted Software" data-ar="برامج غير مرغوب فيها">Unwanted Software</span>
+                    <span style="font-size:0.78rem;background:rgba(239,68,68,0.08);color:#fca5a5;padding:3px 10px;border-radius:6px;" data-en="Potentially Harmful Apps" data-ar="تطبيقات قد تكون ضارة">Potentially Harmful Apps</span>
+                </div>
+            </div>
+
+            <div class="guide-card" style="border-color:rgba(245,158,11,0.25);">
+                <div class="guide-card-header">
+                    <div class="guide-card-title"><span>🔬</span> <span data-en="Layer 3 — VirusTotal API" data-ar="الطبقة الثالثة — VirusTotal API">Layer 3 — VirusTotal API</span></div>
+                    <span class="speed-badge speed-slow" data-en="~15 seconds" data-ar="~15 ثانية">~15 seconds</span>
+                </div>
+                <p class="guide-desc"><span data-en="Submits the URL to 70+ antivirus and security engines simultaneously. Each engine independently determines if the URL is malicious, suspicious, or clean. The more engines that flag it, the higher the risk score boost." data-ar="يرسل الـ URL إلى أكثر من 70 محرك مكافحة فيروسات وأمن في آنٍ واحد. يحدد كل محرك بشكل مستقل إذا كان الـ URL خبيثاً أو مشبوهاً أو آمناً. كلما زاد عدد المحركات التي تُبلّغ عنه، ارتفعت درجة المخاطرة.">Submits the URL to 70+ antivirus and security engines simultaneously. Each engine independently determines if the URL is malicious, suspicious, or clean. The more engines that flag it, the higher the risk score boost.</span></p>
+            </div>
+        </div>
+
+        <div class="guide-section">
+            <div class="guide-section-title" data-en="📊 Risk Score Explained" data-ar="📊 شرح درجة المخاطر">📊 Risk Score Explained</div>
+            <div class="guide-card">
+                <div class="score-row" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);">
+                    <span class="score-range" style="color:#34d399;">0–39</span>
+                    <div><div class="score-label" style="color:#34d399;" data-en="LIKELY SAFE" data-ar="على الأرجح آمن">LIKELY SAFE</div><div class="score-desc" data-en="No significant signals detected across all layers" data-ar="لم يتم اكتشاف إشارات مهمة عبر جميع الطبقات">No significant signals detected across all layers</div></div>
+                </div>
+                <div class="score-row" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);">
+                    <span class="score-range" style="color:#fbbf24;">40–69</span>
+                    <div><div class="score-label" style="color:#fbbf24;" data-en="SUSPICIOUS" data-ar="مشبوه">SUSPICIOUS</div><div class="score-desc" data-en="Some signals detected — proceed with caution" data-ar="تم اكتشاف بعض الإشارات — تصرف بحذر">Some signals detected — proceed with caution</div></div>
+                </div>
+                <div class="score-row" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);">
+                    <span class="score-range" style="color:#f87171;">70–100</span>
+                    <div><div class="score-label" style="color:#f87171;" data-en="PHISHING" data-ar="تصيد احتيالي">PHISHING</div><div class="score-desc" data-en="High confidence threat — do not visit this URL" data-ar="تهديد بثقة عالية — لا تزر هذا الـ URL">High confidence threat — do not visit this URL</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="guide-section">
+            <div class="guide-section-title" data-en="🔎 Lookup Tools" data-ar="🔎 أدوات البحث">🔎 Lookup Tools</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">
+                <div class="guide-card"><div style="font-size:1.1rem;margin-bottom:8px;">🔗 URL Scanner</div><p class="guide-desc" style="margin:0;" data-en="Full 3-layer analysis of any URL. Combines heuristics, Google Safe Browsing, and VirusTotal for the most comprehensive result." data-ar="تحليل كامل بثلاث طبقات لأي URL. يجمع بين التحليل الاستدلالي و Google Safe Browsing API و VirusTotal API للحصول على أشمل نتيجة.">Full 3-layer analysis of any URL. Combines heuristics, Google Safe Browsing, and VirusTotal for the most comprehensive result.</p></div>
+                <div class="guide-card"><div style="font-size:1.1rem;margin-bottom:8px;">🌐 IP Address</div><p class="guide-desc" style="margin:0;" data-en="Check if an IP is known for hosting malware, phishing pages, or command-and-control servers. Shows country, ASN, and 94 engine verdicts." data-ar="تحقق إذا كان عنوان IP معروفاً باستضافة البرمجيات الخبيثة أو صفحات التصيد أو خوادم التحكم والسيطرة. يعرض الدولة و ASN ونتائج 94 محركاً.">Check if an IP is known for hosting malware, phishing pages, or command-and-control servers. Shows country, ASN, and 94 engine verdicts.</p></div>
+                <div class="guide-card"><div style="font-size:1.1rem;margin-bottom:8px;">🏠 Domain</div><p class="guide-desc" style="margin:0;" data-en="Full domain reputation check — registrar, age, categories, and engine verdicts. Older domains with clean history are more trustworthy." data-ar="فحص كامل لسمعة النطاق — جهة التسجيل والعمر والفئات ونتائج المحركات. النطاقات الأقدم ذات السجل النظيف أكثر موثوقية.">Full domain reputation check — registrar, age, categories, and engine verdicts. Older domains with clean history are more trustworthy.</p></div>
+                <div class="guide-card"><div style="font-size:1.1rem;margin-bottom:8px;">🔑 File Hash</div><p class="guide-desc" style="margin:0;" data-en="Check if a file (by MD5/SHA1/SHA256) is known malware — without uploading or opening it. Instant lookup against 76+ engines." data-ar="تحقق إذا كان الملف (عبر MD5/SHA1/SHA256) برمجية خبيثة معروفة — دون رفعه أو فتحه. بحث فوري عبر أكثر من 76 محركاً.">Check if a file (by MD5/SHA1/SHA256) is known malware — without uploading or opening it. Instant lookup against 76+ engines.</p></div>
+            </div>
+        </div>
+
+        <div class="guide-card" style="background:rgba(99,102,241,0.06);border-color:rgba(99,102,241,0.2);">
+            <div style="font-size:0.85rem;font-weight:700;color:#818cf8;margin-bottom:6px;" data-en="⚠️ Disclaimer" data-ar="⚠️ إخلاء مسؤولية">⚠️ Disclaimer</div>
+            <p class="guide-desc" style="margin:0;"><span data-en="PhishRadar is a security research and educational tool. A clean result does not guarantee a URL is safe — new phishing pages may not yet be indexed. Always exercise caution with unsolicited links." data-ar="PhishRadar أداة بحثية وتعليمية في مجال الأمن السيبراني. النتيجة النظيفة لا تضمن أن الـ URL آمن — فصفحات التصيد الجديدة قد لا تكون مفهرسة بعد. تصرف دائماً بحذر مع الروابط غير المرغوب فيها.">PhishRadar is a security research and educational tool. A clean result does not guarantee a URL is safe — new phishing pages may not yet be indexed. Always exercise caution with unsolicited links.</span></p>
+        </div>
+
+    </div><!-- /page-guide -->
+
+    <div class="footer"><span data-en="PhishRadar &mdash; phishing.saoud.site &mdash; For educational and security research purposes" data-ar="PhishRadar &mdash; phishing.saoud.site &mdash; لأغراض تعليمية وبحثية أمنية">PhishRadar &mdash; phishing.saoud.site &mdash; For educational and security research purposes</span></div>
+</div>
+
+<script>
+
+
+    // Language
+    const savedLang = localStorage.getItem('pr-lang') || 'en';
+    applyLang(savedLang);
+
+    function toggleLang() {
+        applyLang(document.documentElement.lang === 'en' ? 'ar' : 'en');
+    }
+
+    function applyLang(lang) {
+        const doc = document.documentElement;
+        doc.lang = lang;
+        doc.dir  = lang === 'ar' ? 'rtl' : 'ltr';
+        localStorage.setItem('pr-lang', lang);
+        document.getElementById('langBtn').textContent = lang === 'en' ? 'ع' : 'EN';
+
+        // Translate static elements
+        document.querySelectorAll('[data-en]').forEach(el => {
+            el.innerHTML = el.getAttribute('data-' + lang);
+        });
+
+        // Translate placeholders
+        document.querySelectorAll('[data-ph-en]').forEach(el => {
+            el.placeholder = el.getAttribute('data-ph-' + lang);
+        });
+    }
+
+    // AR translations for JS-generated content
+    const T = {
+        en: {
+            analyzing:    'Analyzing URL structure...',
+            checkingGSB:  'Checking Google Safe Browsing...',
+            scanningVT:   'Scanning 70+ engines...',
+            waiting:      'Waiting...',
+            done:         'Done',
+            error:        'Error',
+            threatsDetected: 'Threats detected!',
+            flagged:      (n,t) => `${n} engines flagged!`,
+            vtLoading:    'Scanning with 70+ engines...',
+            vtWait:       'This may take up to 15 seconds',
+            querying:     'Querying VirusTotal...',
+            scanning:     'Querying VirusTotal...',
+            notFound:     'Request failed',
+            copyDone:     'Copied!',
+            copy:         'Copy',
+            noFlags:      '✓ No suspicious indicators detected',
+            featureNames: {
+                url_length: 'URL Length', has_https: 'HTTPS', is_ip: 'Is IP Address',
+                subdomain_count: 'Subdomains', hyphen_count: 'Hyphens',
+                suspicious_tld: 'Suspicious TLD', suspicious_keywords: 'Susp. Keywords',
+                url_entropy: 'URL Entropy', has_encoding: 'Encoded Chars',
+                brand_impersonation: 'Brand Spoofing', domain_age_days: 'Domain Age', path_depth: 'Path Depth'
+            },
+            featureFormats: {
+                url_length: v => v + ' chars', has_https: v => v ? 'Yes' : 'No',
+                is_ip: v => v ? 'Yes' : 'No', subdomain_count: v => v,
+                hyphen_count: v => v, suspicious_tld: v => v ? 'Yes' : 'No',
+                suspicious_keywords: v => v, url_entropy: v => v?.toFixed(2),
+                has_encoding: v => v ? 'Yes' : 'No', brand_impersonation: v => v ? 'Yes' : 'No',
+                domain_age_days: v => v === null ? 'Unknown' : v + ' days', path_depth: v => v,
+            },
+            lookupFields: {
+                Country: 'Country', 'AS Owner': 'AS Owner', ASN: 'ASN', Network: 'Network',
+                Malicious: 'Malicious', Suspicious: 'Suspicious', Harmless: 'Harmless',
+                Undetected: 'Undetected', Reputation: 'Reputation', Domain: 'Domain',
+                Registrar: 'Registrar', Age: 'Age', 'File Name': 'File Name',
+                'File Type': 'File Type', 'File Size': 'File Size', 'Hash Type': 'Hash Type'
+            },
+            vtLabel: (mal, sus) => mal > 0 ? `${mal} engine${mal>1?'s':''} detected malicious` : sus > 0 ? `${sus} engine${sus>1?'s':''} flagged suspicious` : 'No engines detected threats',
+            vtEngines: n => `${n} engines`,
+            vtMal: n => `● Malicious: ${n}`, vtSus: n => `● Suspicious: ${n}`, vtClean: n => `● Clean: ${n}`,
+            gsbClean: 'No threats detected', gsbThreats: t => 'Threats detected: ' + t,
+            gsbLabel: 'Google Safe Browsing', vtLabelTop: 'VirusTotal',
+            shareBtn: '🔗 Share Result', threatNames: 'Threat names:',
+        },
+        ar: {
+            analyzing:    'جارٍ تحليل بنية الرابط...',
+            checkingGSB:  'جارٍ التحقق من جوجل للتصفح الآمن...',
+            scanningVT:   'جارٍ الفحص بـ 70+ محرك...',
+            waiting:      'في الانتظار...',
+            done:         'تم',
+            error:        'خطأ',
+            threatsDetected: 'تم اكتشاف تهديدات!',
+            flagged:      (n,t) => `${n} محرك أبلغ عن تهديد!`,
+            vtLoading:    'جارٍ الفحص بـ 70+ محرك...',
+            vtWait:       'قد يستغرق حتى 15 ثانية',
+            querying:     'جارٍ الاستعلام من فايروس توتال...',
+            notFound:     'فشل الطلب',
+            copyDone:     'تم النسخ!',
+            copy:         'نسخ',
+            noFlags:      '✓ لم يتم اكتشاف أي مؤشرات مشبوهة',
+            featureNames: {
+                url_length: 'طول الرابط', has_https: 'HTTPS', is_ip: 'هل هو عنوان IP',
+                subdomain_count: 'النطاقات الفرعية', hyphen_count: 'الشرطات',
+                suspicious_tld: 'نطاق مشبوه', suspicious_keywords: 'كلمات مشبوهة',
+                url_entropy: 'عشوائية الرابط', has_encoding: 'أحرف مشفرة',
+                brand_impersonation: 'انتحال علامة تجارية', domain_age_days: 'عمر النطاق', path_depth: 'عمق المسار'
+            },
+            featureFormats: {
+                url_length: v => v + ' حرف', has_https: v => v ? 'نعم' : 'لا',
+                is_ip: v => v ? 'نعم' : 'لا', subdomain_count: v => v,
+                hyphen_count: v => v, suspicious_tld: v => v ? 'نعم' : 'لا',
+                suspicious_keywords: v => v, url_entropy: v => v?.toFixed(2),
+                has_encoding: v => v ? 'نعم' : 'لا', brand_impersonation: v => v ? 'نعم' : 'لا',
+                domain_age_days: v => v === null ? 'غير معروف' : v + ' يوم', path_depth: v => v,
+            },
+            lookupFields: {
+                Country: 'الدولة', 'AS Owner': 'مالك الشبكة', ASN: 'رقم ASN', Network: 'الشبكة',
+                Malicious: 'خبيث', Suspicious: 'مشبوه', Harmless: 'آمن',
+                Undetected: 'غير محدد', Reputation: 'السمعة', Domain: 'النطاق',
+                Registrar: 'جهة التسجيل', Age: 'العمر', 'File Name': 'اسم الملف',
+                'File Type': 'نوع الملف', 'File Size': 'حجم الملف', 'Hash Type': 'نوع الهاش'
+            },
+            vtLabel: (mal, sus) => mal > 0 ? `${mal} محرك اكتشف خطراً` : sus > 0 ? `${sus} محرك أبلغ عن اشتباه` : 'لم يكتشف أي محرك تهديدات',
+            vtEngines: n => `${n} محرك`,
+            vtMal: n => `● خبيث: ${n}`, vtSus: n => `● مشبوه: ${n}`, vtClean: n => `● آمن: ${n}`,
+            gsbClean: 'لم يتم اكتشاف تهديدات', gsbThreats: t => 'تهديدات مكتشفة: ' + t,
+            gsbLabel: 'جوجل للتصفح الآمن', vtLabelTop: 'فايروس توتال',
+            shareBtn: '🔗 مشاركة النتيجة', threatNames: 'أسماء التهديدات:',
+        }
+    };
+
+    function t(key, ...args) {
+        const lang = document.documentElement.lang || 'en';
+        const val = T[lang][key];
+        return typeof val === 'function' ? val(...args) : (val ?? T.en[key]);
+    }
+
+    function showPage(page) {
+        document.getElementById('page-home').style.display  = page === 'home'  ? 'block' : 'none';
+        document.getElementById('page-guide').style.display = page === 'guide' ? 'block' : 'none';
+        document.getElementById('nav-home').classList.toggle('active',  page === 'home');
+        document.getElementById('nav-guide').classList.toggle('active', page === 'guide');
+    }
+
+    // Theme
+    const html = document.documentElement;
+    const saved = localStorage.getItem('pr-theme') || 'dark';
+    applyTheme(saved);
+    function toggleTheme() { applyTheme(html.dataset.theme === 'dark' ? 'light' : 'dark'); }
+    function applyTheme(t) {
+        html.dataset.theme = t;
+        document.getElementById('themeBtn').textContent = t === 'dark' ? '☀️' : '🌙';
+        localStorage.setItem('pr-theme', t);
+    }
+
+    let scanCount = 0, threatCount = 0, history = [];
+    let currentShareUrl = '';
+
+    function fillExample(url) { document.getElementById('urlInput').value = url; analyze(); }
+    document.getElementById('urlInput').addEventListener('keydown', e => { if (e.key === 'Enter') analyze(); });
+
+    function setStep(n, state, msg) {
+        const step = document.getElementById('step' + n);
+        const status = document.getElementById('s' + n + 'status');
+        const ind = document.getElementById('s' + n + 'ind');
+        step.className = 'step ' + state;
+        status.textContent = msg;
+        if (state === 'running') ind.innerHTML = '<div class="spinner-sm"></div>';
+        else if (state === 'done')   ind.innerHTML = '<span class="step-check" style="color:#34d399">✓</span>';
+        else if (state === 'failed') ind.innerHTML = '<span class="step-check" style="color:#f87171">✗</span>';
+        else ind.innerHTML = '';
+    }
+
+    function animateScore(score) {
+        const fill = document.getElementById('scoreFill');
+        const num  = document.getElementById('scoreNum');
+        fill.style.strokeDashoffset = 238.76 - (score / 100) * 238.76;
+        let cur = 0, step = score / 40;
+        const t = setInterval(() => { cur = Math.min(cur + step, score); num.textContent = Math.round(cur); if (cur >= score) clearInterval(t); }, 20);
+    }
+
+    function renderResult(data) {
+        const icons = { danger:'🚨', warning:'⚠️', success:'✅' };
+        document.getElementById('verdictIcon').textContent = icons[data.color];
+        document.getElementById('verdictLabel').textContent = data.verdict;
+        document.getElementById('riskLevel').textContent = data.risk_level;
+        document.getElementById('urlDisplay').textContent = data.url;
+
+        const header = document.getElementById('resultHeader');
+        header.className = 'result-header ' + data.color;
+        const vt = document.getElementById('verdictText');
+        vt.className = 'verdict-text ' + data.color;
+
+        const ring = document.getElementById('scoreRing');
+        ring.className = 'score-ring ' + data.color;
+        animateScore(data.score);
+
+        // Flags
+        const fl = document.getElementById('flagsList');
+        const heuristicFlags = (data.flags||[]).filter(f => !f.startsWith('VirusTotal') && !f.startsWith('Google Safe Browsing'));
+        if (heuristicFlags.length > 0) {
+            const fc = data.color === 'success' ? 'warning' : data.color;
+            fl.innerHTML = heuristicFlags.map(f => `<div class="flag-item ${fc}"><div class="flag-dot"></div>${f}</div>`).join('');
+        } else {
+            fl.innerHTML = t('noFlags').replace(/^/,'<div class="no-flags">').replace(/$/,'</div>') || '<div class="no-flags">✓ No suspicious indicators detected</div>';
+        }
+
+        // Features
+        const fg = document.getElementById('featuresGrid');
+        const lang = document.documentElement.lang || 'en';
+        const fn = T[lang].featureNames;
+        const ff = T[lang].featureFormats;
+        const items = [
+            {name:fn.url_length,        key:'url_length',           fmt:ff.url_length,           },
+            {name:fn.has_https,         key:'has_https',            fmt:ff.has_https,            bool:true},
+            {name:fn.is_ip,             key:'is_ip',                fmt:ff.is_ip,                boolRev:true},
+            {name:fn.subdomain_count,   key:'subdomain_count',      fmt:ff.subdomain_count,      },
+            {name:fn.hyphen_count,      key:'hyphen_count',         fmt:ff.hyphen_count,         },
+            {name:fn.suspicious_tld,    key:'suspicious_tld',       fmt:ff.suspicious_tld,       boolRev:true},
+            {name:fn.suspicious_keywords,key:'suspicious_keywords', fmt:ff.suspicious_keywords,  },
+            {name:fn.url_entropy,       key:'url_entropy',          fmt:ff.url_entropy,          },
+            {name:fn.has_encoding,      key:'has_encoding',         fmt:ff.has_encoding,         boolRev:true},
+            {name:fn.brand_impersonation,key:'brand_impersonation', fmt:ff.brand_impersonation,  boolRev:true},
+            {name:fn.domain_age_days,   key:'domain_age_days',      fmt:ff.domain_age_days,      },
+            {name:fn.path_depth,        key:'path_depth',           fmt:ff.path_depth,           },
+        ];
+        fg.innerHTML = items.map(item => {
+            const val = data.features ? data.features[item.key] : (item.key === 'domain_age_days' ? data.domain_age_days : null);
+            let cls = '';
+            if (item.bool)    cls = val ? 'no'  : 'yes';
+            if (item.boolRev) cls = val ? 'yes' : 'no';
+            return `<div class="feature-item"><div class="feature-name">${item.name}</div><div class="feature-value ${cls}">${item.fmt(val ?? null)}</div></div>`;
+        }).join('');
+
+        document.getElementById('resultCard').style.display = 'block';
+        document.getElementById('shareRow').style.display = 'flex';
+        if (data.share_url) currentShareUrl = data.share_url;
+        resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function renderGSB(gsb) {
+        const el = document.getElementById('gsbContent');
+        if (!gsb) return;
+        if (gsb.error) {
+            el.innerHTML = `<div class="gsb-box unknown"><div class="gsb-circle" style="background:#64748b">?</div><div><div class="gsb-label-top">Google Safe Browsing</div><div class="gsb-label-main">${gsb.error}</div></div></div>`;
+            return;
+        }
+        const safe = gsb.safe;
+        const cls  = safe ? 'safe' : (safe === false ? 'unsafe' : 'unknown');
+        const icon = safe ? '✓' : '✗';
+        const lbl  = safe ? t('gsbClean') : t('gsbThreats', (gsb.threats||[]).join(', '));
+        el.innerHTML = `<div class="gsb-box ${cls}"><div class="gsb-circle">${icon}</div><div><div class="gsb-label-top">${t('gsbLabel')}</div><div class="gsb-label-main">${lbl}</div></div></div>`;
+    }
+
+    function renderVT(vt) {
+        const el = document.getElementById('vtContent');
+        if (!vt || vt.error) {
+            el.innerHTML = `<div class="vt-box"><div class="vt-label-top">VirusTotal</div><div class="vt-label-main" style="color:var(--muted)">${vt?.error||'Unavailable'}</div></div>`;
+            return;
+        }
+        const mal=vt.malicious||0, sus=vt.suspicious||0, total=vt.total||1, clean=total-mal-sus;
+        const lbl = t('vtLabel', mal, sus);
+        el.innerHTML = `<div class="vt-box">
+            <div class="vt-header"><div><div class="vt-label-top">${t('vtLabelTop')}</div><div class="vt-label-main">${lbl}</div></div><span class="vt-total">${t('vtEngines',total)}</span></div>
+            <div class="vt-bar"><div class="vt-bar-mal" style="width:${(mal/total*100).toFixed(1)}%"></div><div class="vt-bar-sus" style="width:${(sus/total*100).toFixed(1)}%"></div><div class="vt-bar-ok" style="width:${(clean/total*100).toFixed(1)}%"></div></div>
+            <div class="vt-stats"><span style="color:#f87171">${t('vtMal',mal)}</span><span style="color:#fbbf24">${t('vtSus',sus)}</span><span style="color:#34d399">${t('vtClean',clean)}</span></div>
+        </div>`;
+    }
+
+    function updateHistory(url, score, color) {
+        history.unshift({url, score, color});
+        if (history.length > 5) history.pop();
+        const sec = document.getElementById('historySection');
+        const list = document.getElementById('historyList');
+        sec.style.display = 'block';
+        list.innerHTML = history.map(h => `
+            <div class="history-item" onclick="fillExample('${h.url.replace(/'/g,"\\'")}')">
+                <div class="history-dot ${h.color}"></div>
+                <div class="history-url">${h.url}</div>
+                <div class="history-score ${h.color}">${h.score}/100</div>
+            </div>`).join('');
+    }
+
+    function shareResult() {
+        const link = document.getElementById('shareLink');
+        const btn  = document.getElementById('copyBtn');
+        link.textContent = currentShareUrl;
+        link.style.display = 'block';
+        btn.style.display  = 'block';
+    }
+
+    function copyLink() {
+        navigator.clipboard.writeText(currentShareUrl).then(() => {
+            const btn = document.getElementById('copyBtn');
+            btn.textContent = t('copyDone');
+            setTimeout(() => btn.textContent = t('copy'), 2000);
+        });
+    }
+
+    async function analyze() {
+        const url = document.getElementById('urlInput').value.trim();
+        if (!url) return;
+
+        const btn = document.getElementById('scanBtn');
+        const progressCard = document.getElementById('progressCard');
+        const resultCard   = document.getElementById('resultCard');
+        const errorMsg     = document.getElementById('errorMsg');
+        const threatIntel  = document.getElementById('threatIntel');
+        const shareRow     = document.getElementById('shareRow');
+
+        btn.disabled = true;
+        progressCard.style.display = 'block';
+        resultCard.style.display   = 'none';
+        threatIntel.style.display  = 'none';
+        shareRow.style.display     = 'none';
+        errorMsg.style.display     = 'none';
+        document.getElementById('gsbContent').innerHTML = '';
+        document.getElementById('vtContent').innerHTML  = `<div class="vt-box"><div class="vt-header"><div><div class="vt-label-top">VirusTotal</div><div class="vt-label-main">${t('vtLoading')}</div></div></div><div class="vt-loading"><div class="spinner-sm"></div> ${t('vtWait')}</div></div>`;
+
+        setStep(1,'running', t('analyzing'));
+        setStep(2,'', t('waiting'));
+        setStep(3,'', t('waiting'));
+
+        try {
+            // Step 1+2: Quick (heuristics + GSB + WHOIS)
+            setStep(2,'running', t('checkingGSB'));
+            const r1 = await fetch('/analyze/quick', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({url})
+            });
+            const d1 = await r1.json();
+            if (d1.error) { errorMsg.textContent = d1.error; errorMsg.style.display='block'; return; }
+
+            setStep(1,'done', t('done'));
+            setStep(2, d1.google_sb?.safe === false ? 'failed' : 'done',
+                       d1.google_sb?.safe === false ? t('threatsDetected') : d1.google_sb?.error ? t('error') : t('done'));
+
+            renderResult(d1);
+            threatIntel.style.display = 'block';
+            renderGSB(d1.google_sb);
+
+            // Step 3: VirusTotal
+            setStep(3,'running', t('scanningVT'));
+            const r2 = await fetch('/analyze/vt', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({url, scan_id: d1.scan_id})
+            });
+            const d2 = await r2.json();
+            const vt = d2.virustotal;
+            setStep(3, vt?.malicious > 0 ? 'failed' : vt?.error ? 'failed' : 'done',
+                       vt?.malicious > 0 ? t('flagged', vt.malicious) : vt?.error || t('done'));
+            renderVT(vt);
+
+            // Update score/verdict if VT changed it
+            if (d2.score !== undefined && d2.score !== d1.score) {
+                animateScore(d2.score);
+                document.getElementById('scoreNum').textContent = d2.score;
+                if (d2.color !== d1.color) {
+                    document.getElementById('resultHeader').className = 'result-header ' + d2.color;
+                    document.getElementById('verdictText').className  = 'verdict-text ' + d2.color;
+                    document.getElementById('scoreRing').className    = 'score-ring ' + d2.color;
+                    document.getElementById('verdictLabel').textContent = d2.verdict;
+                    document.getElementById('riskLevel').textContent    = d2.risk_level;
+                    const icons = {danger:'🚨',warning:'⚠️',success:'✅'};
+                    document.getElementById('verdictIcon').textContent = icons[d2.color];
+                }
+                // Add VT flags
+                if (d2.flags) {
+                    const vtFlags = d2.flags.filter(f => f.startsWith('VirusTotal'));
+                    const fl = document.getElementById('flagsList');
+                    vtFlags.forEach(f => {
+                        const div = document.createElement('div');
+                        div.className = 'flag-item danger';
+                        div.innerHTML = '<div class="flag-dot"></div>' + f;
+                        fl.appendChild(div);
+                    });
+                }
+            }
+
+            // Stats
+            scanCount++;
+            const finalColor = d2.color || d1.color;
+            if (finalColor === 'danger') threatCount++;
+            document.getElementById('scanCount').textContent  = scanCount;
+            document.getElementById('threatCount').textContent = threatCount;
+            updateHistory(url, d2.score||d1.score, finalColor);
+
+        } catch(err) {
+            errorMsg.textContent = 'Analysis failed. Please try again.';
+            errorMsg.style.display = 'block';
+            setStep(1,'failed','Error'); setStep(2,'failed','Error'); setStep(3,'failed','Error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+
+    function switchTab(tab) {
+        ['url','ip','domain','hash'].forEach(t => {
+            document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+            document.getElementById('panel-' + t).classList.toggle('active', t === tab);
+        });
+        document.getElementById('lookupCard').style.display = 'none';
+        document.getElementById('errorMsg').style.display   = 'none';
+        if (tab !== 'url') {
+            document.getElementById('progressCard').style.display = 'none';
+            document.getElementById('resultCard').style.display   = 'none';
+        }
+    }
+
+    function showLookupLoading(title) {
+        const card = document.getElementById('lookupCard');
+        document.getElementById('lookupTitle').textContent = title;
+        document.getElementById('lookupBadge').textContent = 'Scanning...';
+        document.getElementById('lookupBadge').className = 'lookup-badge warning';
+        document.getElementById('lookupGrid').innerHTML   = `<div style="color:var(--muted);font-size:0.9rem;display:flex;align-items:center;gap:8px;"><div class="spinner-sm"></div> ${t('querying')}</div>`;
+        document.getElementById('lookupExtra').innerHTML  = '';
+        document.getElementById('lkBarMal').style.width  = '0%';
+        document.getElementById('lkBarSus').style.width  = '0%';
+        document.getElementById('lkBarOk').style.width   = '0%';
+        card.style.display = 'block';
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function renderLookup(data, items, extra) {
+        document.getElementById('lookupBadge').textContent = data.verdict || '-';
+        document.getElementById('lookupBadge').className   = 'lookup-badge ' + (data.color || 'success');
+        const total = data.total || 1;
+        document.getElementById('lkBarMal').style.width = ((data.malicious||0)/total*100).toFixed(1)+'%';
+        document.getElementById('lkBarSus').style.width = ((data.suspicious||0)/total*100).toFixed(1)+'%';
+        document.getElementById('lkBarOk').style.width  = ((data.harmless||0)/total*100).toFixed(1)+'%';
+
+        const lf = T[document.documentElement.lang||'en'].lookupFields;
+        document.getElementById('lookupGrid').innerHTML = items.map(({label, value}) =>
+            `<div class="lookup-item"><div class="lookup-item-label">${lf[label]||label}</div><div class="lookup-item-value">${value ?? (document.documentElement.lang==='ar'?'غير متاح':'N/A')}</div></div>`
+        ).join('');
+        document.getElementById('lookupExtra').innerHTML = extra || '';
+    }
+
+    async function lookupIP() {
+        const ip = document.getElementById('ipInput').value.trim();
+        if (!ip) return;
+        showLookupLoading(ip);
+        try {
+            const r = await fetch('/lookup/ip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ip})});
+            const d = await r.json();
+            if (d.error) { document.getElementById('lookupGrid').innerHTML = `<div style="color:#f87171">${d.error}</div>`; return; }
+            document.getElementById('lookupTitle').textContent = d.ip;
+            renderLookup(d, [
+                {label:'Country',    value: d.country},
+                {label:'AS Owner',   value: d.as_owner},
+                {label:'ASN',        value: d.asn ? 'AS'+d.asn : 'N/A'},
+                {label:'Network',    value: d.network},
+                {label:'Malicious',  value: `${d.malicious} / ${d.total} engines`},
+                {label:'Suspicious', value: d.suspicious},
+                {label:'Harmless',   value: d.harmless},
+                {label:'Reputation', value: d.reputation},
+            ], d.tags?.length ? '<div style="margin-top:8px">' + d.tags.map(t=>`<span class="tag">${t}</span>`).join('') + '</div>' : '');
+        } catch(e) { document.getElementById('lookupGrid').innerHTML = `<div style="color:#f87171">${t('notFound')}</div>`; }
+    }
+
+    async function lookupDomain() {
+        const domain = document.getElementById('domainInput').value.trim();
+        if (!domain) return;
+        showLookupLoading(domain);
+        try {
+            const r = await fetch('/lookup/domain', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({domain})});
+            const d = await r.json();
+            if (d.error) { document.getElementById('lookupGrid').innerHTML = `<div style="color:#f87171">${d.error}</div>`; return; }
+            document.getElementById('lookupTitle').textContent = d.domain;
+            let extra = '';
+            if (d.tags?.length)       extra += '<div style="margin-top:8px">' + d.tags.map(t=>`<span class="tag">${t}</span>`).join('') + '</div>';
+            if (d.categories?.length) extra += '<div style="margin-top:8px"><span style="font-size:0.75rem;color:var(--muted2);text-transform:uppercase;letter-spacing:0.05em;">Categories: </span>' + d.categories.map(c=>`<span class="tag">${c}</span>`).join('') + '</div>';
+            renderLookup(d, [
+                {label:'Domain',     value: d.domain},
+                {label:'Registrar',  value: d.registrar},
+                {label:'Age',        value: d.age || 'Unknown'},
+                {label:'Reputation', value: d.reputation},
+                {label:'Malicious',  value: `${d.malicious} / ${d.total} engines`},
+                {label:'Suspicious', value: d.suspicious},
+                {label:'Harmless',   value: d.harmless},
+                {label:'Undetected', value: d.undetected},
+            ], extra);
+        } catch(e) { document.getElementById('lookupGrid').innerHTML = `<div style="color:#f87171">${t('notFound')}</div>`; }
+    }
+
+    async function lookupHash() {
+        const hash = document.getElementById('hashInput').value.trim();
+        if (!hash) return;
+        showLookupLoading(hash.substring(0,20)+'...');
+        try {
+            const r = await fetch('/lookup/hash', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({hash})});
+            const d = await r.json();
+            if (d.error) { document.getElementById('lookupGrid').innerHTML = `<div style="color:#f87171">${d.error}</div>`; return; }
+            document.getElementById('lookupTitle').textContent = d.name || hash.substring(0,20)+'...';
+            let extra = d.threats?.length ? `<div style="margin-top:12px"><span style="font-size:0.75rem;color:var(--muted2);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:6px;">${t('threatNames')}</span>` + d.threats.map(t=>`<span class="threat-tag">${t}</span>`).join('') + '</div>' : '';
+            renderLookup(d, [
+                {label:'File Name',  value: d.name},
+                {label:'File Type',  value: d.type},
+                {label:'File Size',  value: d.size},
+                {label:'Hash Type',  value: d.hash_type},
+                {label:'Malicious',  value: `${d.malicious} / ${d.total} engines`},
+                {label:'Suspicious', value: d.suspicious},
+                {label:'Harmless',   value: d.harmless},
+                {label:'Undetected', value: d.undetected},
+            ], extra);
+        } catch(e) { document.getElementById('lookupGrid').innerHTML = `<div style="color:#f87171">${t('notFound')}</div>`; }
+    }
+
+    document.getElementById('ipInput')?.addEventListener('keydown',     e => { if(e.key==='Enter') lookupIP(); });
+    document.getElementById('domainInput')?.addEventListener('keydown', e => { if(e.key==='Enter') lookupDomain(); });
+    document.getElementById('hashInput')?.addEventListener('keydown',   e => { if(e.key==='Enter') lookupHash(); });
+
+    // Load shared result if present
+    {% if shared_result %}
+    window.addEventListener('DOMContentLoaded', () => {
+        const data = {{ shared_result|safe }};
+        renderResult(data);
+        document.getElementById('threatIntel').style.display = 'block';
+        if (data.google_sb) renderGSB(data.google_sb);
+        if (data.virustotal) renderVT(data.virustotal);
+        document.getElementById('urlInput').value = data.url || '';
+        document.getElementById('progressCard').style.display = 'none';
+    });
+    {% endif %}
+</script>
+</body>
+</html>

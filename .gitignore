@@ -1,0 +1,15 @@
+# Environment variables — never commit this
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+
+# Database (stores scan results)
+results.db
+
+# Logs
+*.log
